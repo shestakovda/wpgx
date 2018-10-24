@@ -88,6 +88,19 @@ func (s String) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.NullString.String)
 }
 
+// UnmarshalJSON - реализация json.Unmarshaler
+func (s *String) UnmarshalJSON(data []byte) (err error) {
+	if data == nil {
+		s.NullString.Valid = false
+		return nil
+	}
+	s.NullString.Valid = true
+	if err = json.Unmarshal(data, &s.NullString.String); err != nil {
+		return
+	}
+	return nil
+}
+
 // MarshalXML - Реализация xml.Marshaler
 func (s String) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	if !s.NullString.Valid {
@@ -145,6 +158,35 @@ type Int struct{ sql.NullInt64 }
 // Placeholder - реализация IListItem
 func (i *Int) Placeholder(name string) interface{} { return &i.NullInt64 }
 
+// Get - получение значения по-умолчанию
+func (i *Int) Get() int64 {
+	if i.Valid {
+		return i.NullInt64.Int64
+	}
+	return 0
+}
+
+// MarshalJSON - реализация json.Marshaler
+func (i *Int) MarshalJSON() ([]byte, error) {
+	if !i.Valid {
+		return []byte(`null`), nil
+	}
+	return json.Marshal(i.NullInt64.Int64)
+}
+
+// UnmarshalJSON - реализация json.Unmarshaler
+func (i *Int) UnmarshalJSON(data []byte) (err error) {
+	if data == nil {
+		i.NullInt64.Valid = false
+		return nil
+	}
+	i.NullInt64.Valid = true
+	if err = json.Unmarshal(data, &i.NullInt64.Int64); err != nil {
+		return
+	}
+	return nil
+}
+
 /******* Float *******/
 
 // NewFloat - Конструктор для дроби
@@ -169,6 +211,27 @@ func (f *Float) Set(value float64) Float {
 	f.NullFloat64.Valid = true
 	f.NullFloat64.Float64 = value
 	return *f
+}
+
+// MarshalJSON - реализация json.Marshaler
+func (f *Float) MarshalJSON() ([]byte, error) {
+	if !f.Valid {
+		return []byte(`null`), nil
+	}
+	return json.Marshal(f.NullFloat64.Float64)
+}
+
+// UnmarshalJSON - реализация json.Unmarshaler
+func (f *Float) UnmarshalJSON(data []byte) (err error) {
+	if data == nil {
+		f.NullFloat64.Valid = false
+		return nil
+	}
+	f.NullFloat64.Valid = true
+	if err = json.Unmarshal(data, &f.NullFloat64.Float64); err != nil {
+		return
+	}
+	return nil
 }
 
 /******** Times ********/
@@ -242,28 +305,51 @@ func (t Time) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.Time)
 }
 
+// UnmarshalJSON - реализация json.Unmarshaler
+func (t Time) UnmarshalJSON(data []byte) (err error) {
+	if data == nil {
+		t.Valid = false
+		return nil
+	}
+	t.Valid = true
+	if err = json.Unmarshal(data, &t.Time); err != nil {
+		return
+	}
+	return nil
+}
+
 // RawList - обычный список для быстрых выборок
 type RawList []map[string]string
 
 // Шаблоны запросов на вставку
 const (
-	TplUpdate = `
-INSERT INTO "%s" ("%s") 
+	TplInsertUpdate = `
+INSERT INTO "%s"."%s" ("%s") 
 VALUES (%s) 
 ON CONFLICT ("%s") 
 DO UPDATE SET %s;
 `
-
-	TplIgnore = `
-INSERT INTO "%s" ("%s") 
+	TplInsertUpdateReturning = `
+INSERT INTO "%s"."%s" ("%s") 
+VALUES (%s) 
+ON CONFLICT ("%s") 
+DO UPDATE SET %s
+RETURNING "%s";
+`
+	TplInsertIgnore = `
+INSERT INTO "%s"."%s" ("%s") 
 VALUES (%s) 
 ON CONFLICT ("%s") 
 DO NOTHING;
 `
+	TplUpdate = `
+UPDATE "%s"."%s" SET %s
+WHERE "%s" = %s;
+`
 )
 
 // InsertText - хелпер для построения текста запроса на вставку с обновлением
-func InsertText(table string, cols []string, keys []string, update bool) (res string, names []string) {
+func InsertText(schema string, table string, cols []string, keys []string, update bool, returnField string) (res string, names []string) {
 
 	// Получение имен колонок и модификаторов типов
 	mods := make(map[string]string, len(cols))
@@ -308,9 +394,46 @@ func InsertText(table string, cols []string, keys []string, update bool) (res st
 		}
 		sUpdates := strings.Join(updates, ",\n")
 
-		res = fmt.Sprintf(TplUpdate, table, sNames, sPlaces, sKeys, sUpdates)
+		if returnField == "" {
+			res = fmt.Sprintf(TplInsertUpdate, schema, table, sNames, sPlaces, sKeys, sUpdates)
+		} else {
+			res = fmt.Sprintf(TplInsertUpdateReturning, schema, table, sNames, sPlaces, sKeys, sUpdates, returnField)
+		}
 	} else {
-		res = fmt.Sprintf(TplIgnore, table, sNames, sPlaces, sKeys)
+		res = fmt.Sprintf(TplInsertIgnore, schema, table, sNames, sPlaces, sKeys)
 	}
+	return
+}
+
+// UpdateText - хелпер для построения текста запроса на обновление
+func UpdateText(schema string, table string, cols []string, whereCol string) (res string, names []string) {
+	// todo: добавить возможность множественных условия для обновления (может пригодиться, наверное)
+	// Получение имен колонок и модификаторов типов
+	// todo: проверить корректность в случае наличия модификаторов типов
+	mods := make(map[string]string, len(cols))
+	names = make([]string, len(cols))
+	for i := range cols {
+		parts := strings.Split(cols[i], "::")
+		names[i] = parts[0]
+		if len(parts) > 1 {
+			mods[names[i]] = parts[1]
+		}
+	}
+
+	// Подготавливаем нумерованные замены
+	updates := make([]string, 0, len(names))
+	for i := 0; i < len(names); i++ {
+		num := `$%d`
+		if mod := mods[names[i]]; mod != "" {
+			num += `::` + mod
+		}
+		updates = append(updates, fmt.Sprintf(`"%s" = %s`, names[i], fmt.Sprintf(num, i+1)))
+	}
+	sUpdates := strings.Join(updates, ",\n")
+	wherePlace := fmt.Sprintf(`$%d`, len(names)+1)
+	// отдельно для where условия
+	names = append(names, whereCol)
+
+	res = fmt.Sprintf(TplUpdate, schema, table, sUpdates, whereCol, wherePlace)
 	return
 }

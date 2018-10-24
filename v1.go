@@ -198,7 +198,7 @@ func (v *v1) PrepareQueries() (err error) {
 	return nil
 }
 
-// SelectOne - Выборка из базы одного абстрактного объекта
+// RawSelect - Выборка из базы одного абстрактного объекта
 func (v *v1) RawSelect(key string, args ...interface{}) (list RawList, err error) {
 	if v.pool == nil {
 		err = fmt.Errorf("Отсутствует подключение к серверу БД `%s`", v.name)
@@ -271,6 +271,27 @@ func (v *v1) Select(result IList, key string, args ...interface{}) (err error) {
 	}
 
 	return loadRowsV1(result, rows)
+}
+
+// Выборка из БД единичной сущности
+func (v *v1) SelectOne(result IListItem, key string, args ...interface{}) (err error) {
+	if v.pool == nil {
+		return fmt.Errorf("отсутствует подключение к серверу БД `%s`", v.name)
+	}
+
+	defer func() {
+		if err != nil {
+			glog.Warningf("запрос `%s`: ошибка SQL - %s. Параметры:\n%+v", key, err, args)
+		}
+	}()
+
+	var rows *pgx.Rows
+
+	if rows, err = v.pool.Query(key, args...); err != nil {
+		return err
+	}
+
+	return loadRowV1(result, rows)
 }
 
 // Выполнение запроса в БД (режим автокоммита)
@@ -357,6 +378,66 @@ type txv1 struct {
 	tx *pgx.Tx
 }
 
+// RawSelect - Выборка из базы одного абстрактного объекта
+func (t *txv1) RawSelect(key string, args ...interface{}) (list RawList, err error) {
+	if t.db == nil || t.db.pool == nil {
+		err = fmt.Errorf("отсутствует подключение к серверу БД `%s`", t.db.name)
+		return
+	}
+	defer func() {
+		if err != nil {
+			glog.Warningf("запрос `%s`: ошибка SQL - %s. Параметры:\n%+v", key, err, args)
+		}
+	}()
+
+	// Если транзакция еще не активна - начинаем новую
+	if t.tx == nil {
+		if t.tx, err = t.db.pool.Begin(); err != nil {
+			return
+		}
+	}
+
+	var rows *pgx.Rows
+
+	if rows, err = t.tx.Query(key, args...); err != nil {
+		return
+	}
+
+	defer rows.Close()
+
+	// Колонки можно получить один раз
+	names := rows.FieldDescriptions()
+	list = make(RawList, 0, 128)
+
+	// Получение данных
+	for rows.Next() {
+		strs := make([]String, len(names))
+		places := make([]interface{}, len(names))
+		for i := range strs {
+			places[i] = &strs[i]
+		}
+
+		// Сканируем данные из источника
+		if err = rows.Scan(places...); err != nil {
+			return
+		}
+
+		// Объединяем с колонками
+		obj := make(map[string]string, len(names))
+		for i := range names {
+			if strs[i].NullString.Valid {
+				obj[names[i].Name] = strs[i].NullString.String
+			}
+		}
+
+		// Добавляем в множество.
+		list = append(list, obj)
+	}
+
+	// Если во время итерации были ошибки, они должны быть обработаны тут. Саму ошибку также палим в лог
+	return list, rows.Err()
+}
+
 // Выборка из БД
 func (t *txv1) Select(result IList, key string, args ...interface{}) (err error) {
 	if t.db == nil || t.db.pool == nil {
@@ -383,6 +464,34 @@ func (t *txv1) Select(result IList, key string, args ...interface{}) (err error)
 	}
 
 	return loadRowsV1(result, rows)
+}
+
+// Выборка из БД единичной сущности
+func (t *txv1) SelectOne(result IListItem, key string, args ...interface{}) (err error) {
+	if t.db == nil || t.db.pool == nil {
+		return fmt.Errorf("отсутствует подключение к серверу БД `%s`", t.db.name)
+	}
+
+	defer func() {
+		if err != nil {
+			glog.Warningf("запрос `%s`: ошибка SQL - %s. Параметры:\n%+v", key, err, args)
+		}
+	}()
+
+	// Если транзакция еще не активна - начинаем новую
+	if t.tx == nil {
+		if t.tx, err = t.db.pool.Begin(); err != nil {
+			return
+		}
+	}
+
+	var rows *pgx.Rows
+
+	if rows, err = t.tx.Query(key, args...); err != nil {
+		return err
+	}
+
+	return loadRowV1(result, rows)
 }
 
 // Выполнение запроса в БД
@@ -507,6 +616,34 @@ func loadRowsV1(result IList, rows *pgx.Rows) (err error) {
 		if err = result.Append(item); err != nil {
 			return
 		}
+	}
+
+	// Если во время итерации были ошибки, они должны быть обработаны тут. Саму ошибку также палим в лог
+	return rows.Err()
+}
+
+func loadRowV1(result IListItem, rows *pgx.Rows) (err error) {
+	defer rows.Close()
+
+	// Колонки можно получить один раз
+	names := rows.FieldDescriptions()
+	places := make([]interface{}, len(names))
+
+	// Получение данных
+	for rows.Next() {
+		// Формируем очередной экземпляр и список приемников
+		// Формируем список для получения данных. Можно было вынести в интерфейс, но
+		// делать это одинаково и тут, и в реализации интерфейса - так что лучше тут
+		for i := range names {
+			places[i] = result.Placeholder(names[i].Name)
+		}
+
+		// Сканируем данные из источника
+		if err = rows.Scan(places...); err != nil {
+			return
+		}
+		// если единичная выборка - всегда выбираем первую строку - на остальные пофиг
+		break
 	}
 
 	// Если во время итерации были ошибки, они должны быть обработаны тут. Саму ошибку также палим в лог

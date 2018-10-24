@@ -23,6 +23,12 @@ type ITx interface {
 	// Выборка из БД
 	Select(result IList, key string, args ...interface{}) error
 
+	// Выборка из БД единичной сущности
+	SelectOne(result IListItem, key string, args ...interface{}) error
+
+	// Абстрактная выборка
+	RawSelect(key string, args ...interface{}) (list RawList, err error)
+
 	// Выполнение запроса в БД
 	Exec(key string, args ...interface{}) error
 
@@ -56,6 +62,9 @@ type IConn interface {
 
 	// Выборка из БД
 	Select(result IList, key string, args ...interface{}) error
+
+	// Выборка из БД единичной сущности
+	SelectOne(result IListItem, key string, args ...interface{}) error
 
 	// Выполнение запроса в БД (режим автокоммита)
 	Exec(key string, args ...interface{}) error
