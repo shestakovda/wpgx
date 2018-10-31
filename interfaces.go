@@ -40,25 +40,23 @@ type Dealer interface {
 //
 // NewDealer spawns new dealer on the street. It needs to be jailed (closed)
 //
-// Reserve path is for saving args of failed queries. Useful for debug or data restore
-//
-// Register saves query for further preparation. Must be called before Connect
-//
-// Connect method initialize a new connection pool with uri in a connection string format
+// Prepare saves query for further execution
 //
 // Close closes all free dealers with rollback
 type Connector interface {
 	Dealer
 
+	Prepare(query string, names []string) string
+
 	NewDealer() Dealer
 
-	Reserve(path string) error
-
-	Register(query string, names []string) string
-
-	Connect(uri string) error
-
 	Close()
+}
+
+// Connect method initialize a new connection pool with uri in a connection string format
+// Reserve path is for saving args of failed queries. Useful for debug or data restore
+func Connect(name, uri, reserve string) error {
+	return nil
 }
 
 /******************************************************************************/
