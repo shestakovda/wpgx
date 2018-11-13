@@ -1,10 +1,20 @@
 package wpgx
 
-// Translator helps to isolate struct from loading procedure
+// Translator helps to isolate model from loading procedure
 //
 // Translate is intended to associate structure fields with their names
 type Translator interface {
 	Translate(name string) interface{}
+}
+
+// Shaper helps to make database model from business model and vice versa
+//
+// Extrude makes a database model from business data
+//
+// Receive fills the data from a database model
+type Shaper interface {
+	Extrude() Translator
+	Receive(Translator) error
 }
 
 // Collector is a generic collection. It can use lists, maps or channels inside
@@ -13,8 +23,8 @@ type Translator interface {
 //
 // Collect puts a new translator item into the inside collection
 type Collector interface {
-	NewItem() Translator
-	Collect(item Translator)
+	NewItem() Shaper
+	Collect(item Shaper)
 }
 
 // Dealer is an active subject, like an opened transaction, for query performing
@@ -28,35 +38,9 @@ type Collector interface {
 // Jail (aka Close) ends a transaction with commit or rollback respective to the flag
 type Dealer interface {
 	Deal(result Collector, query string, args ...interface{}) error
-
-	Load(item Translator, query string, args ...interface{}) error
-	Save(item Translator, query string, result Collector) error
-
+	Load(item Shaper, query string, args ...interface{}) error
+	Save(item Shaper, query string, result Collector) error
 	Jail(commit bool) error
-}
-
-// Connector is the main database connection manager
-// As a Dealer it can execute queries in a default transaction
-//
-// NewDealer spawns new dealer on the street. It needs to be jailed (closed)
-//
-// Prepare saves query for further execution
-//
-// Close closes all free dealers with rollback
-type Connector interface {
-	Dealer
-
-	Prepare(query string, names []string) string
-
-	NewDealer() Dealer
-
-	Close()
-}
-
-// Connect method initialize a new connection pool with uri in a connection string format
-// Reserve path is for saving args of failed queries. Useful for debug or data restore
-func Connect(name, uri, reserve string) error {
-	return nil
 }
 
 /******************************************************************************/
