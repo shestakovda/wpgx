@@ -1,7 +1,5 @@
 package wpgx
 
-import "os"
-import "path/filepath"
 import "github.com/jackc/pgx"
 import "github.com/pkg/errors"
 
@@ -22,36 +20,27 @@ type Connector interface {
 
 // Connect method initialize a new connection pool with uri in a connection string format
 // Reserve path is for saving args of failed queries. Useful for debug or data restore
-func Connect(uri, reserve string, poolsize int, debug bool) (Connector, error) {
-	var err error
-
+func Connect(uri string, options ...func(*Config) error) (Connector, error) {
 	c := new(conn)
+	cfg := new(Config)
 
-	if err = c.setReservePath(reserve); err != nil {
-		return nil, errors.Wrap(err, "preparing connection")
-	}
-
-	pcfg := pgx.ConnPoolConfig{MaxConnections: poolsize}
-
-	if pcfg.ConnConfig, err = pgx.ParseConnectionString(uri); err != nil {
+	if cfg.ConnPoolConfig.ConnConfig, err = pgx.ParseConnectionString(uri); err != nil {
 		return nil, errors.Wrap(err, "parsing connection string")
 	}
 
-	pcfg.ConnConfig.Logger = new(logger)
-
-	if debug {
-		pcfg.ConnConfig.LogLevel = pgx.LogLevelDebug
-	} else {
-		pcfg.ConnConfig.LogLevel = pgx.LogLevelWarn
+	for i := range options {
+		if err = options[i](cfg); err != nil {
+			return nil, errors.Wrap(err, "applying connection options")
+		}
 	}
 
-	if c.pool, err = pgx.NewConnPool(pcfg); err != nil {
+	if c.pool, err = pgx.NewConnPool(cfg.ConnPoolConfig); err != nil {
 		return nil, errors.Wrap(err, "creating connection pool")
 	}
 
 	c.statements = make(map[string]*stmt)
-
-	return c, nil
+	c.reservePath = cfg.ReservePath
+	return
 }
 
 type stmt struct {
@@ -64,32 +53,6 @@ type conn struct {
 	pool        *pgx.ConnPool
 	statements  map[string]*stmt
 	reservePath string
-}
-
-func (c *conn) setReservePath(possible string) (err error) {
-
-	if possible == "" {
-		return
-	}
-
-	var path string
-
-	if path, err = filepath.Abs(possible); err != nil {
-		return errors.Wrap(err, "checking reserve path")
-	}
-
-	var info os.FileInfo
-
-	if info, err = os.Stat(path); err != nil {
-		return errors.Wrap(err, "testing reserve path")
-	}
-
-	if !info.IsDir() {
-		return errors.New("reserve path is not a directory")
-	}
-
-	c.reservePath = path
-	return
 }
 
 func (c *conn) closed() bool {
