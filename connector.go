@@ -85,7 +85,7 @@ func (c *conn) NewDealer() (Dealer, error) {
 		return nil, errors.New("connection is closed")
 	}
 
-	return nil, nil
+	return &tx{Tx: c.pool.Begin(), c: c}, nil
 }
 
 func (c *conn) Close() {

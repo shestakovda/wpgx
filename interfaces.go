@@ -24,23 +24,7 @@ type Shaper interface {
 // Collect puts a new translator item into the inside collection
 type Collector interface {
 	NewItem() Shaper
-	Collect(item Shaper)
-}
-
-// Dealer is an active subject, like an opened transaction, for query performing
-//
-// Deal! It executes query and loads result into a data collector. Pass nil when no result needed
-//
-// Load gets just one item from the database. When no collection needed
-//
-// Save inserts item into database. Result may need for getting new ID or properties
-//
-// Jail (aka Close) ends a transaction with commit or rollback respective to the flag
-type Dealer interface {
-	Deal(result Collector, query string, args ...interface{}) error
-	Load(item Shaper, query string, args ...interface{}) error
-	Save(item Shaper, query string, result Collector) error
-	Jail(commit bool) error
+	Collect(item Shaper) error
 }
 
 /******************************************************************************/
