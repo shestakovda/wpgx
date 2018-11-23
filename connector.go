@@ -1,5 +1,7 @@
 package wpgx
 
+import "crypto/sha1"
+import "encoding/hex"
 import "github.com/jackc/pgx"
 import "github.com/pkg/errors"
 
@@ -13,7 +15,7 @@ import "github.com/pkg/errors"
 // Close closes all free dealers with rollback
 type Connector interface {
 	Dealer
-	Prepare(name, text string, cols []string) error
+	Prepare(text string, cols []string) (key string, err error)
 	NewDealer() (Dealer, error)
 	Close()
 }
@@ -64,11 +66,11 @@ func (c *conn) ready() error {
 	return nil
 }
 
-func (c *conn) Prepare(name, text string, cols []string) (err error) {
+func (c *conn) Prepare(text string, cols []string) (key string, err error) {
 	const emsg = "preparing statement"
 
 	if err = c.ready(); err != nil {
-		return errors.Wrap(err, emsg)
+		return "", errors.Wrap(err, emsg)
 	}
 
 	s := &stmt{
@@ -76,12 +78,14 @@ func (c *conn) Prepare(name, text string, cols []string) (err error) {
 		cols: cols,
 	}
 
-	if s.exec, err = c.pool.Prepare(name, text); err != nil {
-		return errors.Wrap(err, emsg)
+	sum := sha1.Sum([]byte(text))
+	key = hex.EncodeToString(sum[:])
+
+	if s.exec, err = c.pool.Prepare(key, text); err != nil {
+		return "", errors.Wrap(err, emsg)
 	}
 
-	c.statements[name] = s
-
+	c.statements[key] = s
 	return
 }
 
