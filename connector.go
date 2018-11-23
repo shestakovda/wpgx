@@ -21,6 +21,8 @@ type Connector interface {
 // Connect method initialize a new connection pool with uri in a connection string format
 // Reserve path is for saving args of failed queries. Useful for debug or data restore
 func Connect(uri string, options ...func(*Config) error) (Connector, error) {
+	var err error
+
 	c := new(conn)
 	cfg := new(Config)
 
@@ -40,7 +42,7 @@ func Connect(uri string, options ...func(*Config) error) (Connector, error) {
 
 	c.statements = make(map[string]*stmt)
 	c.reservePath = cfg.ReservePath
-	return
+	return c, nil
 }
 
 type stmt struct {
@@ -55,14 +57,18 @@ type conn struct {
 	reservePath string
 }
 
-func (c *conn) closed() bool {
-	return c == nil || c.pool == nil
+func (c *conn) ready() error {
+	if c == nil || c.pool == nil {
+		return ErrConnClosed
+	}
+	return nil
 }
 
 func (c *conn) Prepare(name, text string, cols []string) (err error) {
+	const emsg = "preparing statement"
 
-	if c.closed() {
-		return errors.New("connection is closed")
+	if err = c.ready(); err != nil {
+		return errors.Wrap(err, emsg)
 	}
 
 	s := &stmt{
@@ -71,7 +77,7 @@ func (c *conn) Prepare(name, text string, cols []string) (err error) {
 	}
 
 	if s.exec, err = c.pool.Prepare(name, text); err != nil {
-		return errors.Wrap(err, "preparing statement")
+		return errors.Wrap(err, emsg)
 	}
 
 	c.statements[name] = s
@@ -80,17 +86,59 @@ func (c *conn) Prepare(name, text string, cols []string) (err error) {
 }
 
 func (c *conn) NewDealer() (Dealer, error) {
+	var err error
+	const emsg = "creating dealer"
 
-	if c.closed() {
-		return nil, errors.New("connection is closed")
+	if err := c.ready(); err != nil {
+		return nil, errors.Wrap(err, emsg)
 	}
 
-	return &tx{Tx: c.pool.Begin(), c: c}, nil
+	d := &tx{c: c}
+	d.Tx, err = c.pool.Begin()
+	return d, errors.Wrap(err, emsg)
 }
+
+func (c *conn) Deal(result Collector, query string, args ...interface{}) (err error) {
+	var d Dealer
+	const emsg = "executing query"
+
+	if d, err = c.NewDealer(); err != nil {
+		return errors.Wrap(err, emsg)
+	}
+	defer func() { d.Jail(err == nil) }()
+
+	return d.Deal(result, query, args...)
+}
+
+func (c *conn) Load(item Shaper, query string, args ...interface{}) (err error) {
+	var d Dealer
+	const emsg = "loading item"
+
+	if d, err = c.NewDealer(); err != nil {
+		return errors.Wrap(err, emsg)
+	}
+	defer func() { d.Jail(err == nil) }()
+
+	return d.Load(item, query, args...)
+}
+
+func (c *conn) Save(item Shaper, query string, result Collector) (err error) {
+	var d Dealer
+	const emsg = "saving item"
+
+	if d, err = c.NewDealer(); err != nil {
+		return errors.Wrap(err, emsg)
+	}
+	defer func() { d.Jail(err == nil) }()
+
+	return d.Save(item, query, result)
+}
+
+func (c *conn) Jail(commit bool) error { return nil }
 
 func (c *conn) Close() {
 
-	if c.closed() {
+	if err := c.ready(); err != nil {
 		return
 	}
 

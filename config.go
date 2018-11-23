@@ -17,6 +17,7 @@ func PoolSize(size int) func(*Config) error {
 			size = 2
 		}
 		cfg.ConnPoolConfig.MaxConnections = size
+		return nil
 	}
 }
 
@@ -24,6 +25,7 @@ func LogLevel(lvl int) func(*Config) error {
 	return func(cfg *Config) error {
 		cfg.ConnPoolConfig.ConnConfig.Logger = new(logger)
 		cfg.ConnPoolConfig.ConnConfig.LogLevel = lvl
+		return nil
 	}
 }
 
@@ -49,7 +51,7 @@ func ReservePath(possible string) func(*Config) error {
 			return errors.New("reserve path is not a directory")
 		}
 
-		c.reservePath = path
+		cfg.ReservePath = path
 		return
 	}
 }
