@@ -7,7 +7,7 @@ type Strings []string
 func (s *Strings) NewItem() Shaper { return new(stringShaper) }
 func (s *Strings) Collect(item Shaper) error {
 	model, ok := item.(*stringShaper)
-	if !ok {
+	if !ok || model == nil {
 		return ErrUnknownType
 	}
 	if model.NullString.Valid {
