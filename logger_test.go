@@ -1,10 +1,13 @@
 package wpgx
 
-import "testing"
-import "github.com/jackc/pgx"
+import (
+	"testing"
+
+	"github.com/jackc/pgx"
+)
 
 func TestLogger(t *testing.T) {
-	const msg = "test %+v"
+	const msg = "test"
 	var data = map[string]interface{}{"key": "value"}
 
 	l := new(logger)

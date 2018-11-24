@@ -1,11 +1,14 @@
 package wpgx_test
 
-import "os"
-import "log"
-import "testing"
-import "io/ioutil"
-import "path/filepath"
-import "github.com/pkg/errors"
+import (
+	"io/ioutil"
+	"log"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/pkg/errors"
+)
 
 // psql:
 //

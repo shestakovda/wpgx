@@ -1,9 +1,13 @@
 package wpgx
 
-import "crypto/sha1"
-import "encoding/hex"
-import "github.com/jackc/pgx"
-import "github.com/pkg/errors"
+import (
+	"crypto/sha1"
+	"encoding/hex"
+	"sync"
+
+	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
+)
 
 // Connector is the main database connection manager
 // As a Dealer it can execute queries in a default transaction
@@ -15,7 +19,6 @@ import "github.com/pkg/errors"
 // Close closes all free dealers with rollback
 type Connector interface {
 	Dealer
-	Prepare(text string, cols []string) (key string, err error)
 	NewDealer() (Dealer, error)
 	Close()
 }
@@ -54,6 +57,7 @@ type stmt struct {
 }
 
 type conn struct {
+	sync.RWMutex
 	pool        *pgx.ConnPool
 	statements  map[string]*stmt
 	reservePath string
@@ -66,7 +70,7 @@ func (c *conn) ready() error {
 	return nil
 }
 
-func (c *conn) Prepare(text string, cols []string) (key string, err error) {
+func (c *conn) Prepare(text string, cols ...string) (key string, err error) {
 	const emsg = "preparing statement"
 
 	if err = c.ready(); err != nil {
@@ -85,7 +89,9 @@ func (c *conn) Prepare(text string, cols []string) (key string, err error) {
 		return "", errors.Wrap(err, emsg)
 	}
 
+	c.Lock()
 	c.statements[key] = s
+	c.Unlock()
 	return
 }
 
@@ -146,9 +152,11 @@ func (c *conn) Close() {
 		return
 	}
 
+	c.Lock()
 	for name := range c.statements {
 		c.pool.Deallocate(name)
 	}
+	c.Unlock()
 
 	c.pool.Close()
 	c.pool = nil

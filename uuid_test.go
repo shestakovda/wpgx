@@ -1,8 +1,11 @@
 package wpgx_test
 
-import "testing"
-import "github.com/shestakovda/wpgx"
-import "github.com/stretchr/testify/assert"
+import (
+	"testing"
+
+	"github.com/shestakovda/wpgx"
+	"github.com/stretchr/testify/assert"
+)
 
 func TestXUID(t *testing.T) {
 	uuid := wpgx.UUID()

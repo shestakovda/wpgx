@@ -1,13 +1,16 @@
 package wpgx
 
-import "fmt"
-import "io/ioutil"
-import "crypto/sha1"
-import "encoding/hex"
-import "encoding/json"
-import "path/filepath"
-import "github.com/jackc/pgx"
-import "github.com/pkg/errors"
+import (
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
+
+	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
+)
 
 // Dealer is an active subject, like an opened transaction, for query performing
 //
@@ -19,9 +22,10 @@ import "github.com/pkg/errors"
 //
 // Jail (aka Close) ends a transaction with commit or rollback respective to the flag
 type Dealer interface {
+	Prepare(text string, cols ...string) (key string, err error)
 	Deal(result Collector, query string, args ...interface{}) error
 	Load(item Shaper, query string, args ...interface{}) error
-	Save(item Shaper, query string, result Collector) error
+	Save(item Shaper, key string, result Collector) error
 	Jail(commit bool) error
 }
 
@@ -31,10 +35,35 @@ type tx struct {
 }
 
 func (t *tx) ready() error {
-	if t == nil || t.Tx == nil {
+	if t == nil || t.Tx == nil || t.c == nil {
 		return ErrConnClosed
 	}
 	return t.c.ready()
+}
+
+func (t *tx) Prepare(text string, cols ...string) (key string, err error) {
+	const emsg = "preparing statement"
+
+	if err = t.ready(); err != nil {
+		return "", errors.Wrap(err, emsg)
+	}
+
+	s := &stmt{
+		text: text,
+		cols: cols,
+	}
+
+	sum := sha1.Sum([]byte(text))
+	key = hex.EncodeToString(sum[:])
+
+	if s.exec, err = t.Tx.Prepare(key, text); err != nil {
+		return "", errors.Wrap(err, emsg)
+	}
+
+	t.c.Lock()
+	t.c.statements[key] = s
+	t.c.Unlock()
+	return
 }
 
 func (t *tx) Deal(result Collector, query string, args ...interface{}) (err error) {
@@ -128,7 +157,9 @@ func (t *tx) Save(item Shaper, key string, result Collector) (err error) {
 		return errors.Wrap(err, "saving item")
 	}
 
+	t.c.RLock()
 	stmt, ok := t.c.statements[key]
+	t.c.RUnlock()
 	if !ok {
 		return errors.New("unknown prepared query name: " + key)
 	}
@@ -166,9 +197,14 @@ func (t *tx) Save(item Shaper, key string, result Collector) (err error) {
 
 func (t *tx) Jail(commit bool) (err error) {
 	const emsg = "closing transaction"
+	defer func() {
+		t.Rollback()
+		t.Tx = nil
+		t.c = nil
+		t = nil
+	}()
 	if !commit {
 		return errors.Wrap(t.Rollback(), emsg)
 	}
-	defer t.Rollback()
 	return errors.Wrap(t.Commit(), emsg)
 }

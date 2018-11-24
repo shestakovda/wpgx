@@ -1,7 +1,10 @@
 package wpgx
 
-import "encoding/hex"
-import "github.com/satori/go.uuid"
+import (
+	"encoding/hex"
+
+	"github.com/satori/go.uuid"
+)
 
 func GUID() string {
 	v4, _ := uuid.NewV4()

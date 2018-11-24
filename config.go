@@ -1,9 +1,12 @@
 package wpgx
 
-import "os"
-import "path/filepath"
-import "github.com/jackc/pgx"
-import "github.com/pkg/errors"
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
+)
 
 type Config struct {
 	pgx.ConnPoolConfig

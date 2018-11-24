@@ -1,7 +1,9 @@
 package wpgx
 
-import "github.com/jackc/pgx"
-import "github.com/golang/glog"
+import (
+	"github.com/golang/glog"
+	"github.com/jackc/pgx"
+)
 
 const logtpl = "wpgx: %s %+v"
 
