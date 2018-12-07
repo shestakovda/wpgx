@@ -2,6 +2,8 @@ language: go
 go: "1.11"
 services:
   - postgresql
+addons:
+  postgresql: "9.6"
 install: make setup
 script: make test
 before_script:
