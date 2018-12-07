@@ -3,6 +3,8 @@ package wpgx
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"io/ioutil"
+	"path/filepath"
 	"sync"
 
 	"github.com/jackc/pgx"
@@ -45,21 +47,15 @@ func Connect(uri string, options ...func(*Config) error) (Connector, error) {
 		return nil, errors.Wrap(err, "creating connection pool")
 	}
 
-	c.statements = make(map[string]*stmt)
+	c.statements = make(map[string][]string, 128)
 	c.reservePath = cfg.ReservePath
 	return c, nil
-}
-
-type stmt struct {
-	text string
-	cols []string
-	exec *pgx.PreparedStatement
 }
 
 type conn struct {
 	sync.RWMutex
 	pool        *pgx.ConnPool
-	statements  map[string]*stmt
+	statements  map[string][]string
 	reservePath string
 }
 
@@ -70,29 +66,31 @@ func (c *conn) ready() error {
 	return nil
 }
 
-func (c *conn) Prepare(text string, cols ...string) (key string, err error) {
+func (c *conn) Cook(text string, cols ...string) (key string, err error) {
 	const emsg = "preparing statement"
 
 	if err = c.ready(); err != nil {
 		return "", errors.Wrap(err, emsg)
 	}
 
-	s := &stmt{
-		text: text,
-		cols: cols,
-	}
-
 	sum := sha1.Sum([]byte(text))
 	key = hex.EncodeToString(sum[:])
 
-	if s.exec, err = c.pool.Prepare(key, text); err != nil {
+	if _, err = c.pool.Prepare(key, text); err != nil {
 		return "", errors.Wrap(err, emsg)
 	}
 
 	c.Lock()
-	c.statements[key] = s
+	c.statements[key] = cols
 	c.Unlock()
-	return
+
+	if c.reservePath == "" {
+		return
+	}
+
+	path := filepath.Join(c.reservePath, key+".pgsql")
+	err = ioutil.WriteFile(path, []byte(text), 0755)
+	return key, errors.Wrap(err, emsg)
 }
 
 func (c *conn) NewDealer() (Dealer, error) {

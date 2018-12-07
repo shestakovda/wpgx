@@ -13,7 +13,7 @@ func TestStrings(t *testing.T) {
 	assert.NotNil(t, db)
 	defer db.Close()
 
-	key, err := db.Prepare(`
+	key, err := db.Cook(`
 SELECT 
     t::text 
 FROM generate_series('2018-01-01'::timestamp, '2019-01-01', '1 day') AS t;

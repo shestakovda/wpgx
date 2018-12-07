@@ -22,7 +22,7 @@ import (
 //
 // Jail (aka Close) ends a transaction with commit or rollback respective to the flag
 type Dealer interface {
-	Prepare(text string, cols ...string) (key string, err error)
+	Cook(text string, cols ...string) (string, error)
 	Deal(result Collector, query string, args ...interface{}) error
 	Load(item Shaper, query string, args ...interface{}) error
 	Save(item Shaper, key string, result Collector) error
@@ -41,29 +41,31 @@ func (t *tx) ready() error {
 	return t.c.ready()
 }
 
-func (t *tx) Prepare(text string, cols ...string) (key string, err error) {
+func (t *tx) Cook(text string, cols ...string) (key string, err error) {
 	const emsg = "preparing statement"
 
 	if err = t.ready(); err != nil {
 		return "", errors.Wrap(err, emsg)
 	}
 
-	s := &stmt{
-		text: text,
-		cols: cols,
-	}
-
 	sum := sha1.Sum([]byte(text))
 	key = hex.EncodeToString(sum[:])
 
-	if s.exec, err = t.Tx.Prepare(key, text); err != nil {
+	if _, err = t.Tx.Prepare(key, text); err != nil {
 		return "", errors.Wrap(err, emsg)
 	}
 
 	t.c.Lock()
-	t.c.statements[key] = s
+	t.c.statements[key] = cols
 	t.c.Unlock()
-	return
+
+	if t.c.reservePath == "" {
+		return
+	}
+
+	path := filepath.Join(t.c.reservePath, key+".pgsql")
+	err = ioutil.WriteFile(path, []byte(text), 0755)
+	return key, errors.Wrap(err, emsg)
 }
 
 func (t *tx) Deal(result Collector, query string, args ...interface{}) (err error) {
@@ -158,17 +160,17 @@ func (t *tx) Save(item Shaper, key string, result Collector) (err error) {
 	}
 
 	t.c.RLock()
-	stmt, ok := t.c.statements[key]
+	cols, ok := t.c.statements[key]
 	t.c.RUnlock()
 	if !ok {
-		return errors.New("unknown prepared query name: " + key)
+		return errors.New("unknown prepared query key: " + key)
 	}
 
-	args := make([]interface{}, len(stmt.cols))
+	args := make([]interface{}, len(cols))
 	model := item.Extrude()
 
-	for i := range stmt.cols {
-		args[i] = model.Translate(stmt.cols[i])
+	for i := range cols {
+		args[i] = model.Translate(cols[i])
 	}
 
 	defer func() {
@@ -178,9 +180,14 @@ func (t *tx) Save(item Shaper, key string, result Collector) (err error) {
 		const emsg = "reserving data"
 		const etpl = "\n%+v\nreserve data: %+v"
 
-		text, ex := json.MarshalIndent(args, "", "  ")
+		dump := make(map[string]interface{})
+		for i := range cols {
+			dump[cols[i]] = args[i]
+		}
+
+		text, ex := json.MarshalIndent(dump, "", "  ")
 		if ex != nil {
-			fmt.Printf(etpl, errors.Wrap(ex, emsg), args)
+			fmt.Printf(etpl, errors.Wrap(ex, emsg), dump)
 		}
 
 		sum := sha1.Sum([]byte(text))
@@ -188,7 +195,7 @@ func (t *tx) Save(item Shaper, key string, result Collector) (err error) {
 		path := filepath.Join(t.c.reservePath, key+"_"+hash+".json")
 
 		if ex = ioutil.WriteFile(path, text, 0755); ex != nil {
-			fmt.Printf(etpl, errors.Wrap(ex, emsg), args)
+			fmt.Printf(etpl, errors.Wrap(ex, emsg), dump)
 		}
 	}()
 

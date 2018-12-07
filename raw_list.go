@@ -15,8 +15,6 @@ func (s *RawList) Collect(item Shaper) error {
 	for i := range rmap {
 		if rmap[i].Valid {
 			imap[i] = rmap[i].String
-		} else {
-			imap[i] = ""
 		}
 	}
 

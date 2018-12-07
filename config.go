@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	pgx.ConnPoolConfig
 	ReservePath string
+	pgx.ConnPoolConfig
 }
 
 func PoolSize(size int) func(*Config) error {
@@ -26,6 +26,9 @@ func PoolSize(size int) func(*Config) error {
 
 func LogLevel(lvl int) func(*Config) error {
 	return func(cfg *Config) error {
+		if lvl < 0 {
+			lvl = pgx.LogLevelNone
+		}
 		cfg.ConnPoolConfig.ConnConfig.Logger = new(logger)
 		cfg.ConnPoolConfig.ConnConfig.LogLevel = lvl
 		return nil

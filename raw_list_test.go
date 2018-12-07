@@ -13,7 +13,7 @@ func TestRawList(t *testing.T) {
 	assert.NotNil(t, db)
 	defer db.Close()
 
-	key, err := db.Prepare(`
+	key, err := db.Cook(`
 SELECT 
     'name: ' || t::text AS name,
     'text: ' || t::text AS text
