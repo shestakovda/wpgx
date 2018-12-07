@@ -1,0 +1,11 @@
+language: go
+go: "1.11"
+services:
+  - postgresql
+install: make setup
+script: make test
+before_script:
+  - psql -c 'create database travis_ci_test;' -U postgres
+  - cp test.connstr.travis test.connstr
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

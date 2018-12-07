@@ -12,3 +12,4 @@
 *.out
 
 test.connstr
+coverage\.txt
