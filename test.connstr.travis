@@ -1,1 +1,1 @@
-postgres://postgres/travis_ci_test?sslmode=disable
+postgres://postgres@localhost/travis_ci_test?sslmode=disable
