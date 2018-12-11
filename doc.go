@@ -139,14 +139,14 @@ Okay, but what if we need a list of users? No problems, let's implement Collecto
 Now we can select list like this. For example all users with role:
 
     sqlSelectUsers, err := db.Cook(`
-SELECT
-    u.id,
-    u.name,
-    u.role_id,
-    r.name as role_name
-FROM users u
-LEFT JOIN roles r ON u.role_id = r.id
-WHERE u.role_id IS NOT NULL LIMIT 100;
+    SELECT
+        u.id,
+        u.name,
+        u.role_id,
+        r.name as role_name
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    WHERE u.role_id IS NOT NULL LIMIT 100;
     `)
     if err != nil {
         return err
@@ -161,14 +161,14 @@ WHERE u.role_id IS NOT NULL LIMIT 100;
 
 Collector can use maps, channels or another type you want.
 
-But what if we need insert new user and fetch this id?
-For this task we have to prepare insert query:
+But what if we need to insert new user and fetch this id?
+For this task we have to prepare insert query with columns:
 
     sqlInsertUser, err := db.Cook(`
-INSERT INTO users (name, role_id)
-VALUES ($1, $2)
-RETURNING id;
-    `, "name", "role_id") // describe columns for save
+    INSERT INTO users (name, role_id)
+    VALUES ($1, $2)
+    RETURNING id;
+    `, "name", "role_id") // describe Translator columns for save
     if err != nil {
         return err
     }
@@ -195,6 +195,8 @@ Typically Dealer can be used like this:
 
     // Commit when no errors happened
     defer func(){ d.Jail(err == nil) }()
+
+    // Doing something good stuff
 
 Good luck!
 */
