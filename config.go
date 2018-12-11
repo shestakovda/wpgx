@@ -8,11 +8,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Config is just a pgx.ConnPoolConfig with some extra options
 type Config struct {
 	ReservePath string
 	pgx.ConnPoolConfig
 }
 
+// PoolSize is a config helper to set pgx.ConnPoolConfig.MaxConnections field
 func PoolSize(size int) func(*Config) error {
 	return func(cfg *Config) error {
 		// from pgx: max simultaneous connections to use, must be at least 2
@@ -24,6 +26,8 @@ func PoolSize(size int) func(*Config) error {
 	}
 }
 
+// LogLevel is a config helper for use glog as logger
+// godoc: https://godoc.org/github.com/golang/glog
 func LogLevel(lvl int) func(*Config) error {
 	return func(cfg *Config) error {
 		if lvl < 0 {
@@ -35,6 +39,8 @@ func LogLevel(lvl int) func(*Config) error {
 	}
 }
 
+// ReservePath is a config helper to set catalog for saving
+// prepared sql files and uncommitted object data as json files
 func ReservePath(possible string) func(*Config) error {
 	return func(cfg *Config) (err error) {
 		if possible == "" {

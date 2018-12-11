@@ -2,8 +2,11 @@ package wpgx
 
 import "github.com/pkg/errors"
 
+// ErrConnClosed occurs when an attemtp to use closed conncection
 var ErrConnClosed = errors.New("connection is closed")
-var ErrUnknownType = errors.New("unknown item type")
+
+// ErrUnknownType occurs when collector meets unknown shaper type
+var ErrUnknownType = errors.New("unknown shaper type")
 
 // Collector is a generic collection. It can use lists, maps or channels inside
 //

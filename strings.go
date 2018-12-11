@@ -2,9 +2,14 @@ package wpgx
 
 import "database/sql"
 
+// Strings is a simple strings collector
+// It is useful in one-time tasks or small scripts, when no models is need
 type Strings []string
 
+// NewItem is Strings Shaper constructor
 func (s *Strings) NewItem() Shaper { return new(stringShaper) }
+
+// Collect is used to add shaper into Strings
 func (s *Strings) Collect(item Shaper) error {
 	model, ok := item.(*stringShaper)
 	if !ok || model == nil {

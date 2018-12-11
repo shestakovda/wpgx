@@ -2,9 +2,14 @@ package wpgx
 
 import "database/sql"
 
+// RawList is a simple data collector
+// It is useful in one-time tasks or small scripts, when no models is need
 type RawList []map[string]string
 
+// NewItem is RawList Shaper constructor
 func (s *RawList) NewItem() Shaper { r := make(rawListShaper); return &r }
+
+// Collect is used to add shaper into RawList
 func (s *RawList) Collect(item Shaper) error {
 	model, ok := item.(*rawListShaper)
 	if !ok || model == nil {
