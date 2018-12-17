@@ -4,7 +4,7 @@
 [![Travis][TravisBadge]][Travis]
 [![TestCoverage][CodeCovBadge]][CodeCov]
 [![GoReportCard][GoReportCardBadge]][GoReportCard]
-[![Codebeat][CodebeatBadge]][GoReportCard]
+[![Codebeat][CodebeatBadge]][CodeBeat]
 [![GoDoc][GoDocBadge]][GoDoc]
 
 Wrapped PGX - some utility add-on to the perfect https://github.com/jackc/pgx package
