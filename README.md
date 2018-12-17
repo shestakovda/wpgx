@@ -213,12 +213,12 @@ Good luck!
 [Travis]: https://travis-ci.org/shestakovda/wpgx
 [CodeCov]: https://codecov.io/gh/shestakovda/wpgx
 [GoReportCard]: https://goreportcard.com/report/github.com/shestakovda/wpgx
-[CodeBeat]: https://codebeat.co/badges/4238a10d-158b-4116-aac1-b7e21799d8c1
+[CodeBeat]: https://codebeat.co/projects/github-com-shestakovda-wpgx-master
 [GoDoc]: https://godoc.org/github.com/shestakovda/wpgx
 
 [LicenseBadge]: https://img.shields.io/dub/l/vibe-d.svg
 [TravisBadge]: https://travis-ci.org/shestakovda/wpgx.svg?style=flat-square&&branch=master
 [CodeCovBadge]: https://codecov.io/gh/shestakovda/wpgx/branch/master/graph/badge.svg
 [GoReportCardBadge]: https://goreportcard.com/badge/github.com/shestakovda/wpgx
-[CodebeatBadge]: https://codebeat.co/projects/github-com-shestakovda-wpgx-master
+[CodebeatBadge]: https://codebeat.co/badges/4238a10d-158b-4116-aac1-b7e21799d8c1
 [GoDocBadge]: https://godoc.org/github.com/shestakovda/wpgx?status.svg
