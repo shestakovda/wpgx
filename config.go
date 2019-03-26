@@ -34,7 +34,7 @@ func LogLevel(lvl int) func(*Config) error {
 			lvl = pgx.LogLevelNone
 		}
 		cfg.ConnPoolConfig.ConnConfig.Logger = new(logger)
-		cfg.ConnPoolConfig.ConnConfig.LogLevel = lvl
+		cfg.ConnPoolConfig.ConnConfig.LogLevel = pgx.LogLevel(lvl)
 		return nil
 	}
 }
