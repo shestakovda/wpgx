@@ -116,7 +116,16 @@ To create database connection, just call Connect:
 
 For performance issues we can to prepare statements but it is not required for select:
 
-    sqlSelectUser, err := db.Cook(`query text`)
+    sqlSelectUser, err := db.Cook(`
+    SELECT
+        u.id,
+        u.name,
+        u.role_id,
+        r.name as role_name
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    WHERE u.id = $1;
+    `)
     if err != nil {
         return err
     }
@@ -137,7 +146,7 @@ Okay, but what if we need a list of users? No problems, let's implement Collecto
         return new(User)
     }
 
-    func (ul *UserList) Collect(item Shaper) error {
+    func (ul *UserList) Collect(item wpgx.Shaper) error {
         user, ok := item.(*User)
         if !ok {
             return wpgx.ErrUnknownType
